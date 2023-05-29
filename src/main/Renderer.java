@@ -12,14 +12,11 @@ public class Renderer {
 
     // Menu Variables
     public static int numTriangles, numVisibleTris;
-    public static boolean doShowWireframe = false;
-    public static boolean doFillTriangles = true;
-    public static boolean doDisplayColliders = false;
 
     // Rendering Variables
     private static final ArrayList<Triangle> triangleRenderQueue = new ArrayList<>();
     private static final ArrayList<Triangle> AABBMeshRenderQueue = new ArrayList<>();
-    public static Color drawColor = new Color(209, 45, 46);
+    public static final Color drawColor = new Color(197, 206, 212);
 
     // Main Functions
     public static void ready() { }
@@ -27,17 +24,23 @@ public class Renderer {
     public static void process(double delta) { }
 
     public static void frameProcess(JPanel panel, Graphics g) {
+        numTriangles = 0;
+
         int width = panel.getWidth(), height = panel.getHeight();
         updateMatrices(width, height);
         PhysicsEngine.activeCamera.updateInternals();
 
-        if(doDisplayColliders) drawAABBs(width, height, g);
+        if(InputManager.keyMap.get("ctrl")) {
+            drawAABBs(width, height, g, false);
+        } else if(PhysicsEngine.player.remainingMagnifyingGlassTime > 0) {
+            drawAABBs(width, height, g, true);
+        }
 
         for(ArrayList<Object3D> oArr : PhysicsEngine.objectSets) {
             processMeshRendering(PhysicsEngine.activeCamera.posCorrected(), oArr);
         }
 
-        sortDrawTriangles(width, height, g, doShowWireframe, doFillTriangles);
+        sortDrawTriangles(width, height, g);
     }
     
     // Mesh Processing Functions
@@ -53,7 +56,7 @@ public class Renderer {
     }
 
     public static void processMeshRendering(Mesh m, Vector3 cam, boolean isMeshFromAABB) {
-        numTriangles = m.getTriangleCount();
+        numTriangles += m.getTriangleCount();
 
         for (Triangle tri : m.getTris()) {
             Triangle triProj, triTrans, triView;
@@ -108,7 +111,7 @@ public class Renderer {
         });
     }
 
-    public static void sortDrawTriangles(int width, int height, Graphics g, boolean drawWireFrame, boolean fillTriangle) {
+    public static void sortDrawTriangles(int width, int height, Graphics g) {
         triangleRenderQueue.sort((t1, t2) -> {
             double z1 = (t1.v1.z + t1.v2.z + t1.v3.z) / 3.0f;
             double z2 = (t2.v1.z + t2.v2.z + t2.v3.z) / 3.0f;
@@ -167,7 +170,7 @@ public class Renderer {
 
             for (Triangle tri : listTriangles) {
                 numVisibleTris++;
-                drawTriangle(width, height, g, tri, drawWireFrame, fillTriangle);
+                drawTriangle(width, height, g, tri, false, true);
             }
         }
 
@@ -176,6 +179,9 @@ public class Renderer {
 
     public static void drawTriangle(double width, double height, Graphics g, Triangle t, boolean drawWireFrame, boolean fillTriangle) {
         double lum = t.lum / 255.0;
+
+        lum = Mth.clamp(lum, 0.1, 1);
+
         g.setColor(new Color((int) (drawColor.getRed() * lum), (int) (drawColor.getGreen() * lum), (int) (drawColor.getBlue() * lum)));
 
         Path2D path = new Path2D.Double();
@@ -194,15 +200,29 @@ public class Renderer {
         }
     }
 
-    public static void drawAABBs(double width, double height, Graphics g) {
+    public static void drawAABBs(double width, double height, Graphics g, boolean fromPowerup) {
         AABBMeshRenderQueue.clear();
-        for(Object3D o: PhysicsEngine.objects) {
-            processMeshRendering(o.getCollider().getMesh(), PhysicsEngine.activeCamera.posCorrected(), true);
+
+        if (!fromPowerup) {
+            for (ArrayList<Object3D> oArr : PhysicsEngine.objectSets) {
+                for(Object3D o: oArr) {
+                    processMeshRendering(o.getCollider().getMesh(), PhysicsEngine.activeCamera.posCorrected(), true);
+                }
+            }
+        } else {
+            for(Object3D o: PhysicsEngine.activeEnemies) {
+                processMeshRendering(o.getCollider().getMesh(), PhysicsEngine.activeCamera.posCorrected(), true);
+            }
         }
 
         for(Triangle tri : AABBMeshRenderQueue) {
             Graphics2D g2d = (Graphics2D) g;
-            g2d.setColor(new Color(0, 32, 255));
+
+            if(!fromPowerup) {
+                g2d.setColor(new Color(0, 32, 255));
+            } else {
+                g2d.setColor(new Color(227, 31, 143));
+            }
 
             Path2D path = new Path2D.Double();
 

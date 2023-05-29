@@ -2,31 +2,28 @@ package main;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.event.MenuEvent;
-import javax.swing.event.MenuListener;
-import javax.swing.plaf.basic.BasicMenuBarUI;
-import javax.swing.plaf.basic.BasicMenuUI;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 
 public class Main {
-    private static final String windowTitle = "Basic 3D Java Engine";
+    private static final String windowTitle = "Space Defender";
     private static final double fpsUpdateSpeed = 0.125;
-    public static Image icon = null;
+    public static Image icon;
     private static double delta;
     private static long startTime;
+    private static double targetHealthPercent = 0;
 
-    private static JLabel triangleCount;
+    private static final Font directionsFont = new Font("Courier New", Font.PLAIN, 14);
+    private static final Font scoreFont = new Font("Courier New", Font.PLAIN, 18);
 
-    public static Color bgColor = new Color(150, 200, 230);
+    public static final Color bgColor = new Color(30, 32, 44);
 
     static {
-        try { icon = ImageIO.read(new File("resources/icon.png"));}
+        try { icon = ImageIO.read(new File("resources/icons/icon_full.png"));}
         catch (IOException ignored) { }
     }
-
 
     public static void main(String[] args) throws IOException {
         int width = 1024, height = 1024;
@@ -43,7 +40,6 @@ public class Main {
         frame.setFocusable(true);
         frame.requestFocusInWindow();
 
-        createMenuBar(frame);
         PhysicsEngine.ready();
         Renderer.ready();
 
@@ -53,6 +49,7 @@ public class Main {
                 g.fillRect(0, 0, getWidth(), getHeight());
 
                 Renderer.frameProcess(this, g);
+                renderHUD(this, g);
             }
         };
 
@@ -67,140 +64,141 @@ public class Main {
             long endTime = System.currentTimeMillis();
             delta = ((endTime - startTime) * 1E-3);
             startTime = endTime;
-            
-            PhysicsEngine.process(delta);
+
+            try { PhysicsEngine.process(delta); }
+            catch (Exception e) { throw new RuntimeException(e); }
             Renderer.process(delta);
 
             panel.repaint();
-            triangleCount.setText(String.format("Tris: %,d | %,d", Renderer.numTriangles, Renderer.numVisibleTris));
         };
 
         Timer timer = new Timer(1000 / 60, repaintAction); timer.start();
 
-        Timer setWindowTitle = new Timer((int) (fpsUpdateSpeed * 1000), e -> frame.setTitle(windowTitle + " (FPS: " + Math.round(1.0/delta) + ")")); setWindowTitle.start();
+        Timer setWindowTitle = new Timer((int) (fpsUpdateSpeed * 1000), e -> frame.setTitle(
+                windowTitle + " | FPS: " + Math.round(1.0/delta) + " | " + Renderer.numTriangles + ", " + Renderer.numVisibleTris
+        )); setWindowTitle.start();
 
         frame.add(panel); frame.revalidate();
     }
 
-    public static void createMenuBar(JFrame jframe) {
-        // Menu Bar
-        JMenuBar menuBar = new JMenuBar();
-        jframe.setJMenuBar(menuBar);
+    public static void renderHUD(JPanel panel, Graphics g) {
+        if(!PhysicsEngine.gameState.equals(PhysicsEngine.State.PLAY)) return;
 
-        menuBar.setUI(new BasicMenuBarUI());
+        final int CORNER_SPACING = 16;
+        final int UI_SPACING = 8;
+        final int[] DIRECTIONS_BOX_DIMENSIONS = new int[] {235, 95};
+        final int[] SCORE_BOX_DIMENSIONS = new int[] {200, 28};
+        final int[] HEALTH_BAR_DIMENSIONS = new int[] {125, 20};
+        final int UI_BOX_BORDER = 2;
+        final int UI_TEXT_LINE_SPACING = 14;
 
-        // Menus
-        JMenu debugMenu = new JMenu("Debug");
-        JMenu colorsMenu = new JMenu("Colors");
-
-
-        // Colors Menu
-        JMenuItem pickColor = new JMenuItem("Change Color");
-        JMenuItem pickBGColor = new JMenuItem("Change BG Color");
-
-        // Debug Menu
-        JCheckBoxMenuItem displayWireframe = new JCheckBoxMenuItem("Display Wireframe") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Icon icon = isSelected() ? new ImageIcon("resources/check.png") : new ImageIcon("resources/uncheck.png");
-                icon.paintIcon(this, g, 4, 4);
-            }
-        };
-        JCheckBoxMenuItem fillTriangles = new JCheckBoxMenuItem("Fill Triangles") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Icon icon = isSelected() ? new ImageIcon("resources/check.png") : new ImageIcon("resources/uncheck.png");
-                icon.paintIcon(this, g, 4, 4);
-            }
-        };
-        fillTriangles.setState(true);
-        triangleCount = new JLabel(String.format("Tris: %,d | %,d", Renderer.numTriangles, Renderer.numVisibleTris));  triangleCount.setEnabled(false);
-
-        JCheckBoxMenuItem displayColliders = new JCheckBoxMenuItem("Display Colliders") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Icon icon = isSelected() ? new ImageIcon("resources/check.png") : new ImageIcon("resources/uncheck.png");
-                icon.paintIcon(this, g, 4, 4);
-            }
+        final String[] instructions = new String[] {
+                "Space Defender:",
+                "W,A,S,D to move",
+                "E,Q to change elevation",
+                "SPACE to shoot laser",
+                "Shoot enemies & don't crash",
+                "[Basic3DEngineJava example]"
         };
 
-        for(JMenu menu : java.util.List.of(colorsMenu, debugMenu)) {
-            menu.setUI(new BasicMenuUI() {
-                @Override
-                protected void paintBackground(Graphics g, JMenuItem menuItem, Color bgColor) {
-                    ButtonModel model = menuItem.getModel();
-                    Color oldColor = g.getColor();
-                    int menuWidth = menuItem.getWidth();
-                    int menuHeight = menuItem.getHeight();
+        final Color BORDER_COLOR = new Color(145, 115, 29);
+        final Color BOX_FILL = new Color(58, 58, 58);
+        final Color HEALTH_FULL = new Color(56, 162, 65);
+        final Color HEALTH_EMPTY = new Color(173, 59, 59);
 
-                    if (model.isArmed() || (menuItem instanceof JMenu && model.isSelected())) {
-                        g.setColor(menuItem.getBackground().darker());
-                        g.fillRect(0,0, menuWidth, menuHeight);
-                    } else {
-                        g.setColor(menuItem.getBackground());
-                        g.fillRect(0,0, menuWidth, menuHeight);
-                    }
-                    g.setColor(oldColor);
-                }
+        g.setFont(directionsFont);
 
-                @Override
-                protected void paintText(Graphics g, JMenuItem menuItem, Rectangle textRect, String text) {
-                    Graphics2D g2d = (Graphics2D) g;
-                    g2d.drawString(text, textRect.x, (textRect.y + textRect.height) - 2);
-                }
-            });
+        int[] cornerOrigin = new int[] {CORNER_SPACING, panel.getHeight() - CORNER_SPACING};
+
+        g.setColor(BORDER_COLOR);
+
+        g.fillRect(
+                cornerOrigin[0],
+                cornerOrigin[1] - DIRECTIONS_BOX_DIMENSIONS[1] - 2 * UI_BOX_BORDER,
+                DIRECTIONS_BOX_DIMENSIONS[0] + 2 * UI_BOX_BORDER,
+                DIRECTIONS_BOX_DIMENSIONS[1] + 2 * UI_BOX_BORDER
+        );
+
+        g.setColor(BOX_FILL);
+
+        g.fillRect(
+                cornerOrigin[0] + UI_BOX_BORDER,
+                cornerOrigin[1] - DIRECTIONS_BOX_DIMENSIONS[1] - UI_BOX_BORDER,
+                DIRECTIONS_BOX_DIMENSIONS[0],
+                DIRECTIONS_BOX_DIMENSIONS[1]
+        );
+
+        int[] scoreCornerOrigin = new int[] {cornerOrigin[0], cornerOrigin[1] - DIRECTIONS_BOX_DIMENSIONS[1] - 2 * UI_BOX_BORDER - UI_SPACING};
+
+        g.setColor(BORDER_COLOR);
+
+        g.fillRect(
+                scoreCornerOrigin[0],
+                scoreCornerOrigin[1] - SCORE_BOX_DIMENSIONS[1] - 2 * UI_BOX_BORDER,
+                SCORE_BOX_DIMENSIONS[0] + 2 * UI_BOX_BORDER,
+                SCORE_BOX_DIMENSIONS[1] + 2 * UI_BOX_BORDER
+        );
+
+        g.setColor(BOX_FILL);
+
+        g.fillRect(
+                scoreCornerOrigin[0] + UI_BOX_BORDER,
+                scoreCornerOrigin[1] - SCORE_BOX_DIMENSIONS[1] - UI_BOX_BORDER,
+                SCORE_BOX_DIMENSIONS[0],
+                SCORE_BOX_DIMENSIONS[1]
+        );
+
+        int[] healthCornerOrigin = new int[] {cornerOrigin[0], scoreCornerOrigin[1] - SCORE_BOX_DIMENSIONS[1] - 2 * UI_BOX_BORDER - UI_SPACING};
+
+        g.setColor(BORDER_COLOR);
+
+        g.fillRect(
+                healthCornerOrigin[0],
+                healthCornerOrigin[1] - HEALTH_BAR_DIMENSIONS[1] - 2 * UI_BOX_BORDER,
+                HEALTH_BAR_DIMENSIONS[0] + 2 * UI_BOX_BORDER,
+                HEALTH_BAR_DIMENSIONS[1] + 2 * UI_BOX_BORDER
+        );
+
+        g.setColor(BOX_FILL);
+
+        g.fillRect(
+                healthCornerOrigin[0] + UI_BOX_BORDER,
+                healthCornerOrigin[1] - HEALTH_BAR_DIMENSIONS[1] - UI_BOX_BORDER,
+                HEALTH_BAR_DIMENSIONS[0],
+                HEALTH_BAR_DIMENSIONS[1]
+        );
+
+        g.setColor(Color.WHITE);
+
+        for(int i = instructions.length -1; i > -1; i--) {
+            int bottomUpIdx = instructions.length -1 - i;
+            g.drawString(instructions[i], cornerOrigin[0] + UI_BOX_BORDER + UI_SPACING, cornerOrigin[1] - UI_BOX_BORDER - UI_SPACING - bottomUpIdx * (UI_TEXT_LINE_SPACING));
         }
 
-        // Add Items To Sub-Menus
-        colorsMenu.add(pickColor);
-        colorsMenu.add(pickBGColor);
-        debugMenu.add(colorsMenu);
+        g.setFont(scoreFont);
+        g.drawString(("Eliminations: " + PhysicsEngine.player.enemyElims), scoreCornerOrigin[0] + UI_BOX_BORDER + UI_SPACING, scoreCornerOrigin[1] - UI_BOX_BORDER - UI_SPACING);
 
-        debugMenu.add(displayWireframe);
-        debugMenu.add(fillTriangles);
-        debugMenu.add(displayColliders);
-        debugMenu.add(triangleCount);
+        double healthPercent = PhysicsEngine.player.getHealth()/100;
 
-        menuBar.add(debugMenu);
+        targetHealthPercent = Mth.moveTowards(targetHealthPercent, healthPercent, 0.05);
 
+        int healthBarLen = (int) ((HEALTH_BAR_DIMENSIONS[0] - 2 * UI_BOX_BORDER) * targetHealthPercent);
 
-        // Sense Updates
-        for (Component c : menuBar.getComponents()) {
-            if (c instanceof JMenu m) {
-                m.addMenuListener(new MenuListener() {
-                    @Override
-                    public void menuSelected(MenuEvent e) {
-                        InputManager.resetKeys();
-                    }
+        g.setColor(lerpColor(HEALTH_EMPTY, HEALTH_FULL, targetHealthPercent));
 
-                    @Override
-                    public void menuDeselected(MenuEvent e) { }
+        g.fillRect(
+                healthCornerOrigin[0] + 2 * UI_BOX_BORDER,
+                healthCornerOrigin[1] - HEALTH_BAR_DIMENSIONS[1],
+                healthBarLen,
+                HEALTH_BAR_DIMENSIONS[1] - 2 * UI_BOX_BORDER
+        );
+    }
 
-                    @Override
-                    public void menuCanceled(MenuEvent e) { }
-                });
-            }
-        }
-
-        pickColor.addActionListener(e -> {
-            CustomColorPicker colorPicker = new CustomColorPicker(Renderer.drawColor);
-            if (JOptionPane.showConfirmDialog(jframe, colorPicker, "Select Draw Color", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
-                Renderer.drawColor = colorPicker.previewColor.getBackground();
-            }
-        });
-
-        pickBGColor.addActionListener(e -> {
-            CustomColorPicker colorPicker = new CustomColorPicker(bgColor);
-            if (JOptionPane.showConfirmDialog(jframe, colorPicker, "Select Background Color", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
-                bgColor = colorPicker.previewColor.getBackground();
-            }
-        });
-
-        displayWireframe.addActionListener(e -> Renderer.doShowWireframe = displayWireframe.isSelected());
-        fillTriangles.addActionListener(e -> Renderer.doFillTriangles = fillTriangles.isSelected());
-        displayColliders.addActionListener(e -> Renderer.doDisplayColliders = displayColliders.isSelected());
+    public static Color lerpColor(Color a, Color b, double t) {
+        return new Color(
+                (int) (Mth.lerp(a.getRed(), b.getRed(), t)),
+                (int) (Mth.lerp(a.getGreen(), b.getGreen(), t)),
+                (int) (Mth.lerp(a.getBlue(), b.getBlue(), t))
+        );
     }
 }

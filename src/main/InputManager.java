@@ -17,10 +17,11 @@ public class InputManager implements KeyListener {
         keyNames.put(KeyEvent.VK_Q, "q");
         keyNames.put(KeyEvent.VK_E, "e");
 
-        keyNames.put(KeyEvent.VK_LEFT, "left_arrow");
-        keyNames.put(KeyEvent.VK_RIGHT, "right_arrow");
-        keyNames.put(KeyEvent.VK_UP, "up_arrow");
-        keyNames.put(KeyEvent.VK_DOWN, "down_arrow");
+        keyNames.put(KeyEvent.VK_ENTER, "enter");
+        keyNames.put(KeyEvent.VK_CONTROL, "ctrl");
+        keyNames.put(KeyEvent.VK_SPACE, "space");
+
+        keyNames.put(KeyEvent.VK_R, "r");
     }
 
     public static final HashMap<String, Boolean> keyMap = new HashMap<>();
